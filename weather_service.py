@@ -91,7 +91,7 @@ class WeatherService:
 
                 temp_int = int(round(raw_temp))
                 uv_int = int(round(raw_uv))
-                line1, line2 = get_uv_scale(raw_uv)
+                line1, line2 = get_uv_scale(uv_int)
 
                 with self.lock:
                     self.data = {

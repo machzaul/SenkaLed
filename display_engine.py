@@ -2,20 +2,24 @@
 """
 display_engine.py
 Engine rendering kanvas 96x16 untuk sistem display SenkaLed (3 panel P10).
-Warna paten: Biru Cyan Langit (#27CCF5).
+Fitur Terbaru:
+- Ukuran font seragam (Unified Font 3x5) untuk semua elemen teks & angka.
+- Margin seimbang atas, bawah, kiri, dan kanan (tidak menempel ke tepi).
+- Jarak rapat antara angka suhu (misal 35) dengan huruf 'C'.
+- Warna paten: Biru Cyan Langit (#27CCF5).
 """
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
-# Warna utama: Biru Cyan Langit (#27CCF5)
+# Warna paten: Biru Cyan Langit (#27CCF5)
 COLOR_CYAN = (39, 204, 245)
 COLOR_BLACK = (0, 0, 0)
 
 # ==============================================================================
-# FONT MATRIKS 3x5 (Sangat kompak untuk baris "UV INDEX" di Panel 2)
+# UNIFIED FONT MATRIKS (Tinggi seragam 5 pixel untuk seluruh teks & angka)
 # ==============================================================================
-FONT_3x5 = {
-    ' ': ["000", "000", "000", "000", "000"],
+FONT_UNIFIED = {
+    ' ': ["00", "00", "00", "00", "00"],         # Lebar 2 px untuk spasi rapat
     '-': ["000", "000", "111", "000", "000"],
     '0': ["111", "101", "101", "101", "111"],
     '1': ["010", "110", "010", "010", "111"],
@@ -35,7 +39,7 @@ FONT_3x5 = {
     'F': ["111", "100", "110", "100", "100"],
     'G': ["111", "100", "101", "101", "111"],
     'H': ["101", "101", "111", "101", "101"],
-    'I': ["111", "010", "010", "010", "111"],
+    'I': ["1", "1", "1", "1", "1"],             # Lebar 1 px ramping & presisi
     'J': ["001", "001", "001", "101", "010"],
     'K': ["101", "110", "100", "110", "101"],
     'L': ["100", "100", "100", "100", "111"],
@@ -55,288 +59,103 @@ FONT_3x5 = {
     'Z': ["111", "001", "010", "100", "111"],
 }
 
-# ==============================================================================
-# FONT BOLD 5x9 (Untuk Suhu "32 C" di Panel 1 agar terbaca jelas & proporsional)
-# ==============================================================================
-FONT_5x9 = {
-    ' ': [
-        "00000",
-        "00000",
-        "00000",
-        "00000",
-        "00000",
-        "00000",
-        "00000",
-        "00000",
-        "00000"
-    ],
-    '0': [
-        "01110",
-        "11011",
-        "10001",
-        "10001",
-        "10001",
-        "10001",
-        "10001",
-        "11011",
-        "01110"
-    ],
-    '1': [
-        "00110",
-        "01110",
-        "00110",
-        "00110",
-        "00110",
-        "00110",
-        "00110",
-        "00110",
-        "01111"
-    ],
-    '2': [
-        "01110",
-        "11011",
-        "00011",
-        "00110",
-        "01100",
-        "11000",
-        "11000",
-        "11011",
-        "11111"
-    ],
-    '3': [
-        "01110",
-        "11011",
-        "00011",
-        "00110",
-        "01110",
-        "00011",
-        "00011",
-        "11011",
-        "01110"
-    ],
-    '4': [
-        "00011",
-        "00111",
-        "01111",
-        "11011",
-        "10011",
-        "11111",
-        "00011",
-        "00011",
-        "00011"
-    ],
-    '5': [
-        "11111",
-        "11000",
-        "11000",
-        "11110",
-        "00011",
-        "00011",
-        "00011",
-        "11011",
-        "01110"
-    ],
-    '6': [
-        "01110",
-        "11011",
-        "11000",
-        "11110",
-        "11011",
-        "10001",
-        "10001",
-        "11011",
-        "01110"
-    ],
-    '7': [
-        "11111",
-        "00011",
-        "00011",
-        "00110",
-        "00110",
-        "01100",
-        "01100",
-        "11000",
-        "11000"
-    ],
-    '8': [
-        "01110",
-        "11011",
-        "10001",
-        "01110",
-        "11011",
-        "10001",
-        "10001",
-        "11011",
-        "01110"
-    ],
-    '9': [
-        "01110",
-        "11011",
-        "10001",
-        "10001",
-        "11011",
-        "01111",
-        "00011",
-        "11011",
-        "01110"
-    ],
-    'C': [
-        "01110",
-        "11011",
-        "11000",
-        "11000",
-        "11000",
-        "11000",
-        "11000",
-        "11011",
-        "01110"
-    ]
-}
 
-# ==============================================================================
-# FONT 4x6 (Untuk teks skala status di Panel 3: VERY, HIGH, LOW, dll)
-# ==============================================================================
-FONT_4x6 = {
-    ' ': ["0000", "0000", "0000", "0000", "0000", "0000"],
-    '-': ["0000", "0000", "1111", "0000", "0000", "0000"],
-    'A': ["0110", "1001", "1111", "1001", "1001", "1001"],
-    'B': ["1110", "1001", "1110", "1001", "1001", "1110"],
-    'C': ["0111", "1000", "1000", "1000", "1000", "0111"],
-    'D': ["1110", "1001", "1001", "1001", "1001", "1110"],
-    'E': ["1111", "1000", "1110", "1000", "1000", "1111"],
-    'F': ["1111", "1000", "1110", "1000", "1000", "1000"],
-    'G': ["0111", "1000", "1011", "1001", "1001", "0111"],
-    'H': ["1001", "1001", "1111", "1001", "1001", "1001"],
-    'I': ["1110", "0100", "0100", "0100", "0100", "1110"],
-    'K': ["1001", "1010", "1100", "1010", "1001", "1001"],
-    'L': ["1000", "1000", "1000", "1000", "1000", "1111"],
-    'M': ["1111", "1111", "1001", "1001", "1001", "1001"],
-    'O': ["0110", "1001", "1001", "1001", "1001", "0110"],
-    'R': ["1110", "1001", "1110", "1100", "1010", "1001"],
-    'T': ["1111", "0100", "0100", "0100", "0100", "0100"],
-    'U': ["1001", "1001", "1001", "1001", "1001", "0110"],
-    'V': ["1001", "1001", "1001", "1001", "0110", "0110"],
-    'W': ["1001", "1001", "1001", "1111", "1111", "1001"],
-    'Y': ["1001", "1001", "0110", "0100", "0100", "0100"],
-}
-
-# ==============================================================================
-# FONT ANGKA BESAR 5x8 (Untuk Angka UV di Panel 2)
-# ==============================================================================
-FONT_UV_DIGIT = {
-    '0': ["01110", "10001", "10001", "10001", "10001", "10001", "10001", "01110"],
-    '1': ["00100", "01100", "00100", "00100", "00100", "00100", "00100", "01110"],
-    '2': ["01110", "10001", "00001", "00010", "00100", "01000", "10000", "11111"],
-    '3': ["01110", "10001", "00001", "00110", "00001", "00001", "10001", "01110"],
-    '4': ["00010", "00110", "01010", "10010", "11111", "00010", "00010", "00010"],
-    '5': ["11111", "10000", "11110", "00001", "00001", "00001", "10001", "01110"],
-    '6': ["01110", "10001", "10000", "11110", "10001", "10001", "10001", "01110"],
-    '7': ["11111", "00001", "00010", "00100", "00100", "01000", "01000", "01000"],
-    '8': ["01110", "10001", "10001", "01110", "10001", "10001", "10001", "01110"],
-    '9': ["01110", "10001", "10001", "10001", "01111", "00001", "10001", "01110"],
-}
+def measure_text_width(text, inter_char_gap=1):
+    """Menghitung lebar pixel total suatu string teks."""
+    if not text:
+        return 0
+    w = 0
+    for i, ch in enumerate(text):
+        pat = FONT_UNIFIED.get(ch, FONT_UNIFIED[' '])
+        w += len(pat[0])
+        if i < len(text) - 1:
+            w += inter_char_gap
+    return w
 
 
-def draw_bitmap_char(px, pattern, ox, oy, color, max_w=96, max_h=16):
-    """Menggambar 1 karakter bitmap ke kanvas pixel PIL."""
-    for r, row in enumerate(pattern):
-        for c, val in enumerate(row):
-            if val == "1":
-                x = ox + c
-                y = oy + r
-                if 0 <= x < max_w and 0 <= y < max_h:
-                    px[x, y] = color
+def draw_text(px, text, ox, oy, color, max_w=96, max_h=16, inter_char_gap=1):
+    """Menggambar string teks bitmap ke pixel buffer PIL."""
+    curr_x = ox
+    for ch in text:
+        pat = FONT_UNIFIED.get(ch, FONT_UNIFIED[' '])
+        cw = len(pat[0])
+        for r, row in enumerate(pat):
+            for c, val in enumerate(row):
+                if val == "1":
+                    x = curr_x + c
+                    y = oy + r
+                    if 0 <= x < max_w and 0 <= y < max_h:
+                        px[x, y] = color
+        curr_x += cw + inter_char_gap
 
 
 def render_senka_canvas(temperature=32, uv_index=7, uv_line1="VERY", uv_line2="HIGH", color=COLOR_CYAN):
     """
-    Menghasilkan objek PIL Image berukuran 96x16 pixel dengan layout 3 zona:
-    - Panel 1 (0..31): Suhu (contoh: "32 C")
-    - Panel 2 (32..63): "UV INDEX" (baris 1) & Angka UV (baris 2)
-    - Panel 3 (64..95): Skala UV (baris 1 & baris 2)
-    Semua elemen digambar dengan warna Cyan (#27CCF5).
+    Menghasilkan kanvas 96x16 pixel dengan spesifikasi:
+    - Ukuran font seragam (tinggi 5 pixel untuk seluruh teks).
+    - Margin atas & bawah seimbang (masing-masing 2 pixel).
+    - Jarak rapat antara angka suhu dan 'C' (misal 32 C atau 35 C).
+    - Margin kiri & kanan pada tiap panel (tidak mepet tepi).
     """
     img = Image.new("RGB", (96, 16), COLOR_BLACK)
     px = img.load()
 
-    # --------------------------------------------------------------------------
-    # ZONA 1: PANEL 1 (X: 0 s/d 31) - SUHU ("32 C" / "35 C")
-    # --------------------------------------------------------------------------
-    temp_str = f"{temperature} C"
-    char_w = 5
-    space_w = 1
-    total_w = len(temp_str) * char_w + (len(temp_str) - 1) * space_w
-    # Center di lebar 32 pixel
-    start_x_panel1 = (32 - total_w) // 2
-    # Center di tinggi 16 pixel (font tinggi 9 px)
-    start_y_panel1 = (16 - 9) // 2
-
-    curr_x = start_x_panel1
-    for ch in temp_str:
-        pattern = FONT_5x9.get(ch, FONT_5x9[' '])
-        draw_bitmap_char(px, pattern, curr_x, start_y_panel1, color)
-        curr_x += char_w + space_w
+    # Layout vertikal untuk display 2 baris (Panel 2 & 3):
+    # - Margin Atas   : 2 px (Y: 0..1)
+    # - Baris 1       : 5 px (Y: 2..6)
+    # - Gap Tengah    : 2 px (Y: 7..8)
+    # - Baris 2       : 5 px (Y: 9..13)
+    # - Margin Bawah  : 2 px (Y: 14..15)
+    y_row1 = 2
+    y_row2 = 9
 
     # --------------------------------------------------------------------------
-    # ZONA 2: PANEL 2 (X: 32 s/d 63) - UV INDEX & ANGKA UV
+    # ZONA 1: PANEL 1 (X: 0 s/d 31) - SUHU ("35 C")
     # --------------------------------------------------------------------------
-    # Baris 1: "UV INDEX" (Font 3x5)
-    # 8 karakter: 8 * 3 + 7 * 1 = 31 px lebar -> tepat mengisi 32 px
+    # Suhu diformat dengan spasi rapat antara angka dan 'C'
+    temp_text = f"{temperature} C"
+    temp_w = measure_text_width(temp_text, inter_char_gap=1)
+    # Center di Panel 1 (0..31) dengan margin kiri & kanan yang aman
+    x_panel1 = (32 - temp_w) // 2
+    # Center vertikal di 16 px (tinggi font 5 px -> offset Y: 5..6)
+    y_panel1 = (16 - 5) // 2
+    draw_text(px, temp_text, x_panel1, y_panel1, color, inter_char_gap=1)
+
+    # --------------------------------------------------------------------------
+    # ZONA 2: PANEL 2 (X: 32 s/d 63) - UV INDEX & ANGKA
+    # --------------------------------------------------------------------------
+    # Baris 1: "UV INDEX"
     uv_header = "UV INDEX"
-    header_w = len(uv_header) * 3 + (len(uv_header) - 1) * 1
-    start_x_header = 32 + (32 - header_w) // 2
-    start_y_header = 1
+    header_w = measure_text_width(uv_header, inter_char_gap=1)
+    # Center di Panel 2 (32..63) -> margin kiri & kanan = (32 - 28) / 2 = 2 px
+    x_header = 32 + (32 - header_w) // 2
+    draw_text(px, uv_header, x_header, y_row1, color, inter_char_gap=1)
 
-    curr_x = start_x_header
-    for ch in uv_header:
-        pattern = FONT_3x5.get(ch, FONT_3x5[' '])
-        draw_bitmap_char(px, pattern, curr_x, start_y_header, color)
-        curr_x += 3 + 1
-
-    # Baris 2: Nilai Angka UV (Font 5x8)
+    # Baris 2: Nilai Angka UV
     uv_str = str(uv_index)
-    uv_digit_w = 5
-    uv_total_w = len(uv_str) * uv_digit_w + (len(uv_str) - 1) * 1
-    start_x_uv = 32 + (32 - uv_total_w) // 2
-    start_y_uv = 7  # Y: 7..14 (tinggi 8 px)
-
-    curr_x = start_x_uv
-    for ch in uv_str:
-        pattern = FONT_UV_DIGIT.get(ch, FONT_UV_DIGIT['0'])
-        draw_bitmap_char(px, pattern, curr_x, start_y_uv, color)
-        curr_x += uv_digit_w + 1
+    uv_w = measure_text_width(uv_str, inter_char_gap=1)
+    x_uv = 32 + (32 - uv_w) // 2
+    draw_text(px, uv_str, x_uv, y_row2, color, inter_char_gap=1)
 
     # --------------------------------------------------------------------------
-    # ZONA 3: PANEL 3 (X: 64 s/d 95) - STATUS SKALA (VERY / HIGH)
+    # ZONA 3: PANEL 3 (X: 64 s/d 95) - SKALA BAHAYA UV (VERY / HIGH)
     # --------------------------------------------------------------------------
-    # Baris 1: uv_line1 (Font 4x6)
+    # Baris 1: uv_line1 (misal "VERY" atau "UV")
     line1 = uv_line1.upper()
-    line1_w = len(line1) * 4 + (len(line1) - 1) * 1
-    start_x_line1 = 64 + (32 - line1_w) // 2
-    start_y_line1 = 1
+    line1_w = measure_text_width(line1, inter_char_gap=1)
+    x_line1 = 64 + (32 - line1_w) // 2
+    draw_text(px, line1, x_line1, y_row1, color, inter_char_gap=1)
 
-    curr_x = start_x_line1
-    for ch in line1:
-        pattern = FONT_4x6.get(ch, FONT_4x6.get(' ', ["0000"]*6))
-        draw_bitmap_char(px, pattern, curr_x, start_y_line1, color)
-        curr_x += 4 + 1
-
-    # Baris 2: uv_line2 (Font 4x6)
+    # Baris 2: uv_line2 (misal "HIGH" atau "LOW")
     line2 = uv_line2.upper()
-    line2_w = len(line2) * 4 + (len(line2) - 1) * 1
-    start_x_line2 = 64 + (32 - line2_w) // 2
-    start_y_line2 = 9
-
-    curr_x = start_x_line2
-    for ch in line2:
-        pattern = FONT_4x6.get(ch, FONT_4x6.get(' ', ["0000"]*6))
-        draw_bitmap_char(px, pattern, curr_x, start_y_line2, color)
-        curr_x += 4 + 1
+    line2_w = measure_text_width(line2, inter_char_gap=1)
+    x_line2 = 64 + (32 - line2_w) // 2
+    draw_text(px, line2, x_line2, y_row2, color, inter_char_gap=1)
 
     return img
 
 
 if __name__ == "__main__":
-    img = render_senka_canvas(32, 7, "VERY", "HIGH")
+    img = render_senka_canvas(35, 9, "VERY", "HIGH")
     img.save("preview_test_96x16.png")
-    print("Render test berhasil: preview_test_96x16.png dibuat.")
+    print("Render test dengan ukuran font seragam & margin seimbang berhasil dibuat.")
