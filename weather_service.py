@@ -2,7 +2,8 @@
 """
 weather_service.py
 Service untuk mengambil data Suhu dan UV Index Jakarta secara real-time
-dari Open-Meteo API dengan sistem offline caching dan background auto-refresh.
+dari Open-Meteo API dengan sistem offline caching, background auto-refresh,
+dan Smart Fast-Retry jika koneksi terputus.
 """
 
 import json
@@ -35,20 +36,21 @@ def get_uv_scale(uv_value):
 
 
 class WeatherService:
-    def __init__(self, lat=DEFAULT_LAT, lon=DEFAULT_LON, refresh_interval=600):
+    def __init__(self, lat=DEFAULT_LAT, lon=DEFAULT_LON, refresh_interval=600, retry_interval=30):
         self.lat = lat
         self.lon = lon
-        self.refresh_interval = refresh_interval  # 10 menit (600 detik)
+        self.refresh_interval = refresh_interval  # 10 menit saat online normal
+        self.retry_interval = retry_interval      # 30 detik saat koneksi internet putus
         self.lock = threading.Lock()
         
-        # Nilai default awal jika belum ada koneksi sama sekali
+        # Nilai default awal aman (standar siang hari Jakarta) jika belum ada koneksi sama sekali
         self.data = {
             "temperature": 32,
             "uv_index": 7,
             "uv_line1": "VERY",
             "uv_line2": "HIGH",
             "last_updated": 0,
-            "status": "initial"
+            "status": "initial_default"
         }
         
         # Load data dari cache lokal jika file tersedia
@@ -61,6 +63,8 @@ class WeatherService:
                     cached = json.load(f)
                     with self.lock:
                         self.data.update(cached)
+                        self.data["status"] = "offline_cache"
+                print(f"[WeatherService] Cache lokal dimuat: {self.data['temperature']}°C, UV {self.data['uv_index']} ({self.data['uv_line1']} {self.data['uv_line2']})")
             except Exception as e:
                 print(f"[WeatherService] Gagal memuat cache: {e}")
 
@@ -75,6 +79,7 @@ class WeatherService:
     def fetch_data(self):
         """
         Mengambil data real-time langsung dari Open-Meteo API.
+        Jika gagal (misal WiFi putus), tidak akan crash dan tetap menggunakan data terakhir.
         """
         url = (
             f"https://api.open-meteo.com/v1/forecast?"
@@ -103,12 +108,14 @@ class WeatherService:
                         "status": "online"
                     }
                 self._save_cache()
-                print(f"[WeatherService] Data berhasil diperbarui: {temp_int}°C, UV {uv_int} ({line1} {line2})")
+                print(f"[WeatherService][ONLINE] Data berhasil diperbarui: {temp_int}°C, UV {uv_int} ({line1} {line2})")
                 return True
             else:
-                print(f"[WeatherService] API error code: {res.status_code}")
+                print(f"[WeatherService][WARNING] API mengembalikan status: {res.status_code}")
         except Exception as e:
-            print(f"[WeatherService] Gagal mengambil data cuaca: {e}. Menggunakan cache terakhir.")
+            with self.lock:
+                self.data["status"] = "offline"
+            print(f"[WeatherService][OFFLINE] Koneksi internet terputus ({e}). Layar tetap menampilkan data terakhir: {self.data['temperature']}°C, UV {self.data['uv_index']}.")
         return False
 
     def get_current(self):
@@ -120,14 +127,18 @@ class WeatherService:
 
     def start_background_updater(self):
         """
-        Menjalankan loop background thread untuk auto-refresh data secara berkala.
+        Menjalankan loop background thread untuk auto-refresh data secara berkala:
+        - Jika ONLINE : Refresh tiap 10 menit (hemat bandwidth).
+        - Jika OFFLINE: Smart retry tiap 30 detik agar segera update begitu internet kembali.
         """
         def worker():
             # Coba fetch pertama kali saat start
-            self.fetch_data()
+            success = self.fetch_data()
             while True:
-                time.sleep(self.refresh_interval)
-                self.fetch_data()
+                # Jika tadi sukses, tunggu 10 menit. Jika gagal, coba lagi dalam 30 detik.
+                sleep_time = self.refresh_interval if success else self.retry_interval
+                time.sleep(sleep_time)
+                success = self.fetch_data()
 
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
