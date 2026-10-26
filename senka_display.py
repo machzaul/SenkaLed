@@ -9,7 +9,7 @@ Update Data: Real-time background fetch dari Open-Meteo API (Jakarta) tiap 10 me
 import sys
 import time
 import signal
-from display_engine import render_senka_canvas, COLOR_CYAN
+from display_engine import render_senka_canvas, COLOR_BLUE
 from weather_service import WeatherService
 
 try:
@@ -35,6 +35,7 @@ def run_senka_display():
         options.parallel = 1
         options.hardware_mapping = "regular"
         options.gpio_slowdown = 2       # Standar stabil Raspberry Pi 3/4
+        options.drop_privileges = False # Sesuai konfigurasi panel.py program sebelumnya
         options.brightness = 75         # Brightness LED 75%
         # Aktifkan driver IC jika panel Anda tipe FM6127 / FM6126A:
         # options.panel_type = "FM6127"
@@ -69,8 +70,8 @@ def run_senka_display():
         cache_key = (temp, uv, line1, line2)
         if cache_key != last_rendered_data:
             print(f"[SenkaDisplay] Update tampilan: {temp}°C | UV {uv} | {line1} {line2}")
-            # Render kanvas 96x16 dengan warna #27CCF5
-            canvas_img = render_senka_canvas(temp, uv, line1, line2, COLOR_CYAN)
+            # Render kanvas 96x16 dengan warna Biru Murni (0, 0, 255)
+            canvas_img = render_senka_canvas(temp, uv, line1, line2, COLOR_BLUE)
 
             if matrix:
                 matrix.SetImage(canvas_img)

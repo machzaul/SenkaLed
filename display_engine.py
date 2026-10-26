@@ -11,7 +11,8 @@ Fitur Terbaru:
 
 from PIL import Image
 
-# Warna paten: Biru Cyan Langit (#27CCF5)
+# Warna Biru Murni Solid (0, 0, 255) sesuai program countdown sebelumnya
+COLOR_BLUE = (0, 0, 255)
 COLOR_CYAN = (39, 204, 245)
 COLOR_BLACK = (0, 0, 0)
 
@@ -89,7 +90,7 @@ def draw_text(px, text, ox, oy, color, max_w=96, max_h=16, inter_char_gap=1):
         curr_x += cw + inter_char_gap
 
 
-def render_senka_canvas(temperature=32, uv_index=7, uv_line1="VERY", uv_line2="HIGH", color=COLOR_CYAN):
+def render_senka_canvas(temperature=32, uv_index=7, uv_line1="VERY", uv_line2="HIGH", color=COLOR_BLUE):
     """
     Menghasilkan kanvas 96x16 pixel dengan spesifikasi:
     - Ukuran font seragam (tinggi 5 pixel untuk seluruh teks).
