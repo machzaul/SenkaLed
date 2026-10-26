@@ -36,6 +36,7 @@ def run_senka_display():
         options.hardware_mapping = "regular"
         options.gpio_slowdown = 2       # Standar stabil Raspberry Pi 3/4
         options.drop_privileges = False # Sesuai konfigurasi panel.py program sebelumnya
+        options.led_rgb_sequence = "BGR" # Koreksi hardware panel P10 (Red & Blue terbalik)
         options.brightness = 75         # Brightness LED 75%
         # Aktifkan driver IC jika panel Anda tipe FM6127 / FM6126A:
         # options.panel_type = "FM6127"
