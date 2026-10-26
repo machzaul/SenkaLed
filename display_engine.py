@@ -90,7 +90,7 @@ def draw_text(px, text, ox, oy, color, max_w=96, max_h=16, inter_char_gap=1):
         curr_x += cw + inter_char_gap
 
 
-def render_senka_canvas(temperature=32, uv_index=7, uv_line1="VERY", uv_line2="HIGH", color=COLOR_BLUE):
+def render_senka_canvas(temperature=32, uv_index=7, uv_line1="VERY", uv_line2="HIGH", color=COLOR_CYAN):
     """
     Menghasilkan kanvas 96x16 pixel dengan spesifikasi:
     - Ukuran font seragam (tinggi 5 pixel untuk seluruh teks).

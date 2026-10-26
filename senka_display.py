@@ -9,7 +9,7 @@ Update Data: Real-time background fetch dari Open-Meteo API (Jakarta) tiap 10 me
 import sys
 import time
 import signal
-from display_engine import render_senka_canvas, COLOR_BLUE
+from display_engine import render_senka_canvas, COLOR_CYAN
 from weather_service import WeatherService
 
 try:
@@ -71,8 +71,8 @@ def run_senka_display():
         cache_key = (temp, uv, line1, line2)
         if cache_key != last_rendered_data:
             print(f"[SenkaDisplay] Update tampilan: {temp}°C | UV {uv} | {line1} {line2}")
-            # Render kanvas 96x16 dengan warna Biru Murni (0, 0, 255)
-            canvas_img = render_senka_canvas(temp, uv, line1, line2, COLOR_BLUE)
+            # Render kanvas 96x16 dengan warna Biru Cyan Langit (#27CCF5)
+            canvas_img = render_senka_canvas(temp, uv, line1, line2, COLOR_CYAN)
 
             if matrix:
                 matrix.SetImage(canvas_img)
