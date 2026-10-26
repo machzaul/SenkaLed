@@ -11,9 +11,9 @@ Fitur Terbaru:
 
 from PIL import Image
 
-# Warna Biru Murni Solid (0, 0, 255) sesuai program countdown sebelumnya
+# Warna Biru Cyan Senka (lebih gelap & pekat, tidak terlalu pucat/terang)
+COLOR_CYAN = (0, 130, 255)
 COLOR_BLUE = (0, 0, 255)
-COLOR_CYAN = (39, 204, 245)
 COLOR_BLACK = (0, 0, 0)
 
 # ==============================================================================
