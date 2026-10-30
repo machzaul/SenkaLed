@@ -2,8 +2,9 @@
 """
 weather_service.py
 Service untuk mengambil data Suhu dan UV Index Jakarta secara real-time
-dari Open-Meteo API dengan sistem offline caching, background auto-refresh,
-dan Smart Fast-Retry jika koneksi terputus.
+untuk 2 lokasi (BLOK M dan CFD SUDIRMAN) dari Open-Meteo API.
+Mendukung perpindahan lokasi dinamis via tombol fisik, offline caching terpisah,
+dan format kategori UV ringkas (LOW, MED, HIGH, VHI, EXT).
 """
 
 import json
@@ -12,78 +13,103 @@ import time
 import threading
 import requests
 
-# Koordinat lokasi Jakarta (area FX Sudirman / Senayan / SCBD)
-DEFAULT_LAT = -6.224413119718039
-DEFAULT_LON = 106.80386768026403
+# Konfigurasi 2 Lokasi Pemantauan Jakarta
+LOCATIONS = {
+    "BLOK_M": {
+        "id": "BLOK_M",
+        "display_name": "BLOK M",
+        "full_name": "Kawasan Blok M, Jakarta Selatan",
+        "lat": -6.244342,
+        "lon": 106.799238,
+        "cache_file": os.path.join(os.path.dirname(__file__), "weather_cache_blokm.json")
+    },
+    "CFD": {
+        "id": "CFD",
+        "display_name": "CFD SUDIRMAN",
+        "full_name": "Koridor CFD Sudirman / Senayan, Jakarta",
+        "lat": -6.224413,
+        "lon": 106.803868,
+        "cache_file": os.path.join(os.path.dirname(__file__), "weather_cache_cfd.json")
+    }
+}
 
-CACHE_FILE = os.path.join(os.path.dirname(__file__), "weather_cache.json")
 
-
-def get_uv_scale(uv_value):
+def get_uv_short_level(uv_value):
     """
-    Mengonversi nilai numerik UV ke kategori skala WHO (2 baris teks).
+    Mengonversi nilai numerik UV ke kategori level ringkas 3-4 huruf:
+    - 0 - 2.9 : LOW
+    - 3 - 5.9 : MED
+    - 6 - 7.9 : HIGH
+    - 8 - 10.9: VHI (Very High)
+    - 11+     : EXT (Extreme)
     """
     if uv_value < 3.0:
-        return ("UV", "LOW")
+        return "LOW"
     elif uv_value < 6.0:
-        return ("MED-", "IUM")
+        return "MED"
     elif uv_value < 8.0:
-        return ("UV", "HIGH")
+        return "HIGH"
     elif uv_value < 11.0:
-        return ("VERY", "HIGH")
+        return "VHI"
     else:
-        return ("EXT-", "REME")
+        return "EXT"
 
 
 class WeatherService:
-    def __init__(self, lat=DEFAULT_LAT, lon=DEFAULT_LON, refresh_interval=600, retry_interval=30):
-        self.lat = lat
-        self.lon = lon
+    def __init__(self, default_location="BLOK_M", refresh_interval=600, retry_interval=30):
+        self.active_location_id = default_location
         self.refresh_interval = refresh_interval  # 10 menit saat online normal
         self.retry_interval = retry_interval      # 30 detik saat koneksi internet putus
         self.lock = threading.Lock()
         
-        # Nilai default awal aman (standar siang hari Jakarta) jika belum ada koneksi sama sekali
-        self.data = {
-            "temperature": 32,
-            "uv_index": 7,
-            "uv_line1": "VERY",
-            "uv_line2": "HIGH",
-            "last_updated": 0,
-            "status": "initial_default"
-        }
-        
-        # Load data dari cache lokal jika file tersedia
-        self._load_cache()
+        # Penyimpanan data untuk masing-masing lokasi
+        self.location_data = {}
+        for loc_id, cfg in LOCATIONS.items():
+            self.location_data[loc_id] = {
+                "location_id": loc_id,
+                "display_name": cfg["display_name"],
+                "temperature": 32,
+                "uv_index": 7,
+                "uv_level": "VHI",
+                "last_updated": 0,
+                "status": "initial_default"
+            }
+            # Muat cache per lokasi jika ada
+            self._load_cache(loc_id)
 
-    def _load_cache(self):
-        if os.path.exists(CACHE_FILE):
+    def _load_cache(self, loc_id):
+        cfg = LOCATIONS[loc_id]
+        cache_path = cfg["cache_file"]
+        if os.path.exists(cache_path):
             try:
-                with open(CACHE_FILE, "r") as f:
+                with open(cache_path, "r") as f:
                     cached = json.load(f)
                     with self.lock:
-                        self.data.update(cached)
-                        self.data["status"] = "offline_cache"
-                print(f"[WeatherService] Cache lokal dimuat: {self.data['temperature']}°C, UV {self.data['uv_index']} ({self.data['uv_line1']} {self.data['uv_line2']})")
+                        self.location_data[loc_id].update(cached)
+                        self.location_data[loc_id]["status"] = "offline_cache"
+                print(f"[WeatherService] Cache dimuat ({cfg['display_name']}): {self.location_data[loc_id]['temperature']}°C, UV {self.location_data[loc_id]['uv_index']} ({self.location_data[loc_id]['uv_level']})")
             except Exception as e:
-                print(f"[WeatherService] Gagal memuat cache: {e}")
+                print(f"[WeatherService] Gagal memuat cache {loc_id}: {e}")
 
-    def _save_cache(self):
+    def _save_cache(self, loc_id):
+        cfg = LOCATIONS[loc_id]
+        cache_path = cfg["cache_file"]
         try:
-            with open(CACHE_FILE, "w") as f:
+            with open(cache_path, "w") as f:
                 with self.lock:
-                    json.dump(self.data, f, indent=2)
+                    json.dump(self.location_data[loc_id], f, indent=2)
         except Exception as e:
-            print(f"[WeatherService] Gagal menyimpan cache: {e}")
+            print(f"[WeatherService] Gagal menyimpan cache {loc_id}: {e}")
 
-    def fetch_data(self):
-        """
-        Mengambil data real-time langsung dari Open-Meteo API.
-        Jika gagal (misal WiFi putus), tidak akan crash dan tetap menggunakan data terakhir.
-        """
+    def fetch_data_for(self, loc_id):
+        """Mengambil data real-time dari API Open-Meteo untuk lokasi tertentu."""
+        cfg = LOCATIONS.get(loc_id)
+        if not cfg:
+            return False
+
         url = (
             f"https://api.open-meteo.com/v1/forecast?"
-            f"latitude={self.lat}&longitude={self.lon}&"
+            f"latitude={cfg['lat']}&longitude={cfg['lon']}&"
             f"current=temperature_2m,uv_index&timezone=Asia%2FJakarta"
         )
         try:
@@ -96,49 +122,70 @@ class WeatherService:
 
                 temp_int = int(round(raw_temp))
                 uv_int = int(round(raw_uv))
-                line1, line2 = get_uv_scale(uv_int)
+                level_str = get_uv_short_level(raw_uv)
 
                 with self.lock:
-                    self.data = {
+                    self.location_data[loc_id] = {
+                        "location_id": loc_id,
+                        "display_name": cfg["display_name"],
                         "temperature": temp_int,
                         "uv_index": uv_int,
-                        "uv_line1": line1,
-                        "uv_line2": line2,
+                        "uv_level": level_str,
                         "last_updated": time.time(),
                         "status": "online"
                     }
-                self._save_cache()
-                print(f"[WeatherService][ONLINE] Data berhasil diperbarui: {temp_int}°C, UV {uv_int} ({line1} {line2})")
+                self._save_cache(loc_id)
+                print(f"[WeatherService][ONLINE] {cfg['display_name']} -> {temp_int}°C, UV {uv_int} ({level_str})")
                 return True
-            else:
-                print(f"[WeatherService][WARNING] API mengembalikan status: {res.status_code}")
         except Exception as e:
             with self.lock:
-                self.data["status"] = "offline"
-            print(f"[WeatherService][OFFLINE] Koneksi internet terputus ({e}). Layar tetap menampilkan data terakhir: {self.data['temperature']}°C, UV {self.data['uv_index']}.")
+                self.location_data[loc_id]["status"] = "offline"
+            print(f"[WeatherService][OFFLINE] Gagal fetch {cfg['display_name']}: {e}. Memakai cache.")
         return False
 
-    def get_current(self):
-        """
-        Mengembalikan data cuaca terkini yang aman diakses dari thread manapun.
-        """
+    def fetch_all(self):
+        """Mengambil data untuk semua lokasi yang terdaftar."""
+        ok = True
+        for loc_id in LOCATIONS.keys():
+            if not self.fetch_data_for(loc_id):
+                ok = False
+        return ok
+
+    def toggle_location(self):
+        """Beralih ke lokasi berikutnya (BLOK M <-> CFD SUDIRMAN)."""
         with self.lock:
-            return dict(self.data)
+            if self.active_location_id == "BLOK_M":
+                self.active_location_id = "CFD"
+            else:
+                self.active_location_id = "BLOK_M"
+            target_info = LOCATIONS[self.active_location_id]
+            print(f"[WeatherService] Lokasi aktif beralih ke: {target_info['display_name']}")
+            return target_info["display_name"]
+
+    def set_location(self, loc_id):
+        if loc_id in LOCATIONS:
+            with self.lock:
+                self.active_location_id = loc_id
+                return LOCATIONS[loc_id]["display_name"]
+        return None
+
+    def get_active_location_info(self):
+        with self.lock:
+            return LOCATIONS[self.active_location_id]
+
+    def get_current(self):
+        """Mengembalikan data lokasi yang sedang aktif saat ini."""
+        with self.lock:
+            return dict(self.location_data[self.active_location_id])
 
     def start_background_updater(self):
-        """
-        Menjalankan loop background thread untuk auto-refresh data secara berkala:
-        - Jika ONLINE : Refresh tiap 10 menit (hemat bandwidth).
-        - Jika OFFLINE: Smart retry tiap 30 detik agar segera update begitu internet kembali.
-        """
+        """Menjalankan loop auto-refresh di background thread."""
         def worker():
-            # Coba fetch pertama kali saat start
-            success = self.fetch_data()
+            success = self.fetch_all()
             while True:
-                # Jika tadi sukses, tunggu 10 menit. Jika gagal, coba lagi dalam 30 detik.
                 sleep_time = self.refresh_interval if success else self.retry_interval
                 time.sleep(sleep_time)
-                success = self.fetch_data()
+                success = self.fetch_all()
 
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
@@ -146,7 +193,10 @@ class WeatherService:
 
 
 if __name__ == "__main__":
-    service = WeatherService()
-    print("Testing manual fetch:")
-    service.fetch_data()
-    print("Current data:", service.get_current())
+    ws = WeatherService()
+    print("Testing manual fetch untuk semua lokasi:")
+    ws.fetch_all()
+    print("Current active location data:", ws.get_current())
+    print("\nToggle location...")
+    ws.toggle_location()
+    print("Current active location data:", ws.get_current())
