@@ -231,6 +231,14 @@ FONT_BOLD_6 = {
         "000",
         "000"
     ],
+    '°': [
+        "111",
+        "101",
+        "111",
+        "000",
+        "000",
+        "000"
+    ],
     '0': [
         "01110",
         "11011",
@@ -391,7 +399,7 @@ def render_senka_canvas(temperature=32, uv_index=7, uv_level="VHI", color=COLOR_
     x1_r1 = (32 - p1_row1_w) // 2
     draw_text(px, p1_row1, x1_r1, y_row1, color, FONT_BOLD_6, inter_char_gap=1)
 
-    p1_row2 = f"{temperature} C"
+    p1_row2 = f"{temperature}°C"
     p1_row2_w = measure_text_width(p1_row2, FONT_BOLD_6, inter_char_gap=1)
     x1_r2 = (32 - p1_row2_w) // 2
     draw_text(px, p1_row2, x1_r2, y_row2, color, FONT_BOLD_6, inter_char_gap=1)
