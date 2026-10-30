@@ -14,6 +14,20 @@ if [ -f /etc/systemd/system/countdown.service ]; then
     echo "-> File /etc/systemd/system/countdown.service berhasil dihapus permanen."
 fi
 
+echo "=== 1B. KONFIGURASI PROFIL WI-FI EVENT OTOMATIS ==="
+WIFI_SSID="4G-WiFi6-2764"
+WIFI_PASS="1234567890"
+
+if command -v nmcli &> /dev/null; then
+    echo "-> Mengonfigurasi Wi-Fi '$WIFI_SSID' via NetworkManager..."
+    # Tambah / update koneksi agar auto-connect saat boot
+    sudo nmcli connection delete "$WIFI_SSID" 2>/dev/null || true
+    sudo nmcli connection add type wifi ifname wlan0 con-name "$WIFI_SSID" ssid "$WIFI_SSID" \
+        wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$WIFI_PASS" \
+        connection.autoconnect yes connection.autoconnect-priority 100 2>/dev/null || true
+    sudo nmcli connection up "$WIFI_SSID" 2>/dev/null || true
+fi
+
 echo "=== 2. MEMBUAT SERVICE BARU (senka.service) ==="
 SERVICE_FILE="/etc/systemd/system/senka.service"
 

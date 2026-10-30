@@ -16,6 +16,7 @@ import signal
 import threading
 from display_engine import render_senka_canvas, render_location_banner, COLOR_CYAN
 from weather_service import WeatherService
+from wifi_manager import start_wifi_watchdog, TARGET_SSID
 
 # Inisialisasi library hardware LED Matrix
 try:
@@ -38,6 +39,9 @@ BUTTON_GPIO_PIN = 5  # Pin Fisik 29 (dihubungkan ke GND Pin 30)
 
 
 def run_senka_display():
+    # 0. Jalankan Wi-Fi Watchdog untuk auto-connect & auto-reconnect ke SSID modem 4G
+    start_wifi_watchdog(check_interval=15)
+
     # 1. Jalankan Service Cuaca untuk 2 lokasi di background
     ws = WeatherService(default_location="BLOK_M", refresh_interval=600)
     ws.start_background_updater()
