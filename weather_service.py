@@ -36,21 +36,18 @@ LOCATIONS = {
 
 def get_uv_short_level(uv_value):
     """
-    Mengonversi nilai numerik UV ke kategori level ringkas 3-4 huruf:
+    Mengonversi nilai numerik UV ke kategori level standar:
     - 0 - 2.9 : LOW
     - 3 - 5.9 : MED
-    - 6 - 7.9 : HIGH
-    - 8 - 10.9: VHI (Very High)
-    - 11+     : EXT (Extreme)
+    - 6 - 10.9: HIGH (Tinggi)
+    - 11+     : EXT (Ekstrem)
     """
     if uv_value < 3.0:
         return "LOW"
     elif uv_value < 6.0:
         return "MED"
-    elif uv_value < 8.0:
-        return "HIGH"
     elif uv_value < 11.0:
-        return "VHI"
+        return "HIGH"
     else:
         return "EXT"
 
@@ -70,7 +67,7 @@ class WeatherService:
                 "display_name": cfg["display_name"],
                 "temperature": 32,
                 "uv_index": 7,
-                "uv_level": "VHI",
+                "uv_level": "HIGH",
                 "last_updated": 0,
                 "status": "initial_default"
             }

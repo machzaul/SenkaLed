@@ -372,7 +372,7 @@ def draw_text(px, text, ox, oy, color, font_dict=FONT_BOLD_6, max_w=96, max_h=16
         curr_x += cw + inter_char_gap
 
 
-def render_senka_canvas(temperature=32, uv_index=7, uv_level="VHI", color=COLOR_CYAN):
+def render_senka_canvas(temperature=32, uv_index=7, uv_level="HIGH", color=COLOR_CYAN):
     """
     Menghasilkan kanvas 96x16 pixel dengan spesifikasi terbaru:
     - Seluruh panel 2 baris (tinggi font 6 px, tebal/bold):
